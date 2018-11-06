@@ -87,40 +87,38 @@ goto :EOF
 
 :Deployment
 echo Handling node.js deployment.
- 
-:: 1. Select node version
-call :SelectNodeVersion
- 
-:: 2. Install npm packages
-IF EXIST "%DEPLOYMENT_SOURCE%\package.json" (
-  pushd "%DEPLOYMENT_SOURCE%"
-  call :ExecuteCmd !NPM_CMD! install
-  IF !ERRORLEVEL! NEQ 0 goto error
-  popd
-)
- 
-:: 3. Angular Prod Build
-IF EXIST "%DEPLOYMENT_SOURCE%/.angular-cli.json" (
-echo Building App in %DEPLOYMENT_SOURCE%…
-pushd "%DEPLOYMENT_SOURCE%"
-call :ExecuteCmd !NPM_CMD! run build
-IF !ERRORLEVEL! NEQ 0 goto error
-popd
-)
- 
-:: 4. Copy Web.config
-IF EXIST "%DEPLOYMENT_SOURCE%\web.config" (
-  pushd "%DEPLOYMENT_SOURCE%"
- :: the next line is optional to fix 404 error see section #8
-  call :ExecuteCmd cp web.config dist\
-  IF !ERRORLEVEL! NEQ 0 goto error
-  popd
-)
- 
-:: 5. KuduSync
+
+:: 1. KuduSync
 IF /I "%IN_PLACE_DEPLOYMENT%" NEQ "1" (
-  call :ExecuteCmd "%KUDU_SYNC_CMD%" -v 50 -f "%DEPLOYMENT_SOURCE%/dist" -t "%DEPLOYMENT_TARGET%" -n "%NEXT_MANIFEST_PATH%" -p "%PREVIOUS_MANIFEST_PATH%" -i ".git;.hg;.deployment;deploy.cmd"
+  call :ExecuteCmd "%KUDU_SYNC_CMD%" -v 50 -f "%DEPLOYMENT_SOURCE%" -t "%DEPLOYMENT_TARGET%" -n "%NEXT_MANIFEST_PATH%" -p "%PREVIOUS_MANIFEST_PATH%" -i ".git;.hg;.deployment;deploy.cmd"
   IF !ERRORLEVEL! NEQ 0 goto error
+)
+
+:: 2. Select node version
+call :SelectNodeVersion
+
+:: 3. Install npm packages
+IF EXIST "%DEPLOYMENT_TARGET%\package.json" (
+  pushd "%DEPLOYMENT_TARGET%"
+  call :ExecuteCmd !NPM_CMD! install --production
+  IF !ERRORLEVEL! NEQ 0 goto error
+  popd
+)
+
+:: Installing NPM dependencies.
+IF EXIST "%DEPLOYMENT_SOURCE%\ClientApp\package.json" (
+  pushd "%DEPLOYMENT_SOURCE%\ClientApp"
+  call npm install --save
+  IF !ERRORLEVEL! NEQ 0 goto error
+  popd
+)
+
+:: Building the Angular App
+IF EXIST "%DEPLOYMENT_SOURCE%\ClientApp\.angular-cli.json" (
+  pushd "%DEPLOYMENT_SOURCE%\ClientApp"
+  call :ExecuteCmd node_modules\.bin\ng build --progress false --prod
+  IF !ERRORLEVEL! NEQ 0 goto error
+  popd
 )
 
 ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
